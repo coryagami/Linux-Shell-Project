@@ -1,0 +1,28 @@
+clear
+while true :
+	get { hostname, username, current directory, $OLDPWD(NULL to start) }
+	print username@hostname prompt
+	
+	read line, parse between whitespace
+	fill cmd, args array
+	
+	if cmd = built-in (cd, ioacct, exit) :
+		if cd : chdir(), update $OLDPWD
+		if ioacct : ???
+		if exit[n] : return n;
+		
+	else :
+		search PATH for cmd
+		child = fork()
+		if child == 0 (inside child) :
+			execv(cmd path, args)
+		else (inside parent):
+			if ends with & :
+				waitpid(-1, (int *)NULL, 0)
+			else :
+				waitpid(with blocking/waiting...)
+
+			
+			
+			
+		
