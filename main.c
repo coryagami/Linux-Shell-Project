@@ -1,7 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+#include <dirent.h>
 #include <sys/types.h>
+
+void parseInput(char* args[], char* line);
+int cmdExist(char* cmd, char* path);
 
 int main()
 {
@@ -17,29 +22,20 @@ int main()
 	char* args3 = (char* ) malloc(12);
 	char* args[] = {args0, args1, args2, args3, (char *)NULL};
 	char line[256];
-	char* token;
-	char* envpath;
 	
 	/* maybe put below 2 functions inside loop? */
 	gethostname(host_name, sizeof(host_name));
 	user_name = getlogin();
 	
-	while(1)			// maybe reset args after each loop?
-	{
+	while(1)
+	{	
+		args[0] = args[1] = args[2] = args[3] = NULL;
 		getcwd(curr_dir, sizeof(curr_dir));
 		printf("%s@%s:%s $ ", host_name, user_name, curr_dir);
-		gets(line);
 		
-		token = strtok(line, " ");
-		args[0] = token;
-		int i=1;
-		while(token != NULL && i < 4) {
-			token = strtok(NULL, " ");
-			args[i] = token;
-			i++;
-		}
+		fgets(line, sizeof(line), stdin);
+		parseInput(args, line);
 		// printf("\n%s %s %s %s\n", args[0], args[1], args[2], args[3]);
-
 
 		if(strcmp(args[0], "cd") == 0 || strcmp(args[0], "ioacct") == 0 || strcmp(args[0], "exit") == 0) {
 			if (strcmp(args[0], "cd") == 0) {
@@ -53,10 +49,62 @@ int main()
 			}
 		}
 		else {
-			envpath = getenv("PATH");
-			// SEARCH FOR COMMAND HERE
-			printf("PATH: %s\n", envpath);
-			printf("%s command not supported yet\n", args[0]);
+			// envpath = getenv("PATH");
+			// Searching for command here
+			if(cmdExist(args[0], getenv("PATH")) == 1)
+				// command found in PATH
+				printf("Command '%s' FOUND!\n", args[0]);
+				// ------------ EXECUTION GOES HERE --------------
+			else
+				// command not found in PATH
+				printf("Command '%s' NOT FOUND!\n", args[0]);
+			
 		}
 	}
 }	
+
+void parseInput(char* args[], char* line)
+{
+	char* token;
+	token = strtok(line, " \n");
+	args[0] = strdup(token);
+	int i=1;
+	while(token = strtok(NULL, " ")) {
+		args[i] = strdup(token);
+		i++;
+	} 
+	size_t ln = strlen(args[i-1])-1; 
+	if(args[i-1][ln] == '\n') 
+		args[i-1][ln] = '\0';
+}
+
+int cmdExist(char* cmd, char* path) 
+{
+	DIR *d; 
+	struct dirent *dir;
+	char* token;
+	
+	// first path, strtok on 'path'
+	token = strtok(path, ":");
+	d = opendir(strdup(token));
+	if (d) 
+	{
+		while ((dir = readdir(d)) != NULL)
+			if(strcmp(cmd, dir->d_name) == 0)
+				return 1;
+		closedir(d);
+	}
+	
+	// rest of paths, strtok on 'NULL'
+	while(token = strtok(NULL, ":"))
+	{
+		d = opendir(strdup(token));
+		if(d)
+		{
+			while ((dir = readdir(d)) != NULL)
+				if(strcmp(cmd, dir->d_name) == 0)
+					return 1;
+		}
+	}
+	return 0;
+}
