@@ -8,13 +8,13 @@ while true :
 	
 	if cmd = built-in (cd, ioacct, exit) :
 		if cd : chdir(), update $OLDPWD
-		if ioacct : ???
+		if ioacct : ??? proc/pid/io
 		if exit[n] : return n;
 		
 	else :
 		search PATH for cmd
 		child = fork()
-		if child == 0 (inside child) :
+		if child == 0 (inside child) :			// avoid nested ifs here for piping
 			execv(cmd path, args)
 		else (inside parent):
 			if ends with & :
