@@ -3,10 +3,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <sys/wait.h>
 #include <sys/types.h>
 
 int parseInput(char* args[], char* line);
-int cmdExist(char* cmd, char* path);
+char* cmdExist(char* cmd, char* path);
 
 int main()
 {
@@ -37,7 +38,7 @@ int main()
 		int numArgs = parseInput(args, line);
 		if(numArgs == 0)
 			continue;
-		printf("\n%s %s %s %s\n", args[0], args[1], args[2], args[3]);
+		// printf("\n%s %s %s %s\n", args[0], args[1], args[2], args[3]);
 
 		if(strcmp(args[0], "cd") == 0 || strcmp(args[0], "ioacct") == 0 || strcmp(args[0], "exit") == 0) {
 			if (strcmp(args[0], "cd") == 0) {
@@ -47,23 +48,48 @@ int main()
 				// do ioacct
 			}
 			else if (strcmp(args[0], "exit") == 0) {
-				return atoi(args[1]);
+				if(args[1] == NULL)
+					return 0;
+				else
+					return atoi(args[1]);
 			}
 		}
 		else {
 			// Searching for command here
-			if(cmdExist(args[0], getenv("PATH")) == 1)
-				// command found in PATH
-				printf("Command '%s' FOUND!\n", args[0]);
-				// ------------ EXECUTION GOES HERE --------------
-			else
-				// command not found in PATH
-				printf("Command '%s' NOT FOUND!\n", args[0]);
 			
+			char* cmdPath = cmdExist(args[0], getenv("PATH"));
+			
+			// IF FOUND ------------------------------------------------
+			if(cmdPath != NULL) {
+				// printf("Command '%s' FOUND in %s !\n", args[0], cmdPath);
+				strcpy(args[0], cmdPath);
+				
+				pid_t child = fork();
+				if (child == 0) {
+					int rtn = execv(cmdPath, (char **)args);
+				}
+				else if (child < 0) {
+					// fork failed
+					exit(EXIT_FAILURE);
+				}
+				// else if & run background
+				else {
+					pid_t child_finished;
+					child_finished = waitpid(-1, (int *)NULL, 0);
+				}
+			}
+			
+			// IF NOT FOUND --------------------------------------------
+			else {
+				printf("Command '%s' NOT FOUND!\n", args[0]);
+			}
 		}
+		
+		// freeing args memory accordingly
 		int x=0;
 		for(;x<numArgs-1; x++) {
-			free(args[x]); printf(".%d.", x); }
+			free(args[x]); 
+		}
 	}
 }	
 
@@ -85,11 +111,12 @@ int parseInput(char* args[], char* line)
 	return i+1;
 }
 
-int cmdExist(char* cmd, char* path) 
+char* cmdExist(char* cmd, char* path) 
 {
 	DIR *d; 
 	struct dirent *dir;
 	char* token;
+	char* cmdPath;
 	
 	// first path, strtok on 'path'
 	token = strtok(strdup(path), ":");
@@ -97,9 +124,13 @@ int cmdExist(char* cmd, char* path)
 	if (d) 
 	{
 		while ((dir = readdir(d)) != NULL)
-			if(strcmp(cmd, dir->d_name) == 0)
-				return 1;
-		closedir(d);
+			if(strcmp(cmd, dir->d_name) == 0) {
+				cmdPath = token;
+				strcat(cmdPath, "/");
+				closedir(d);
+				return strcat(cmdPath, cmd);
+			}
+		closedir(d); // ADD MORE THESE
 	}
 	
 	// rest of paths, strtok on 'NULL'
@@ -109,9 +140,14 @@ int cmdExist(char* cmd, char* path)
 		if(d)
 		{
 			while ((dir = readdir(d)) != NULL)
-				if(strcmp(cmd, dir->d_name) == 0)
-					return 1;
+				if(strcmp(cmd, dir->d_name) == 0) {
+					cmdPath = token;
+					strcat(cmdPath, "/");
+					closedir(d);
+					return strcat(cmdPath, cmd);
+				}
 		}
 	}
-	return 0;
+	closedir(d);
+	return NULL;
 }
