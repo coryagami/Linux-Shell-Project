@@ -5,14 +5,14 @@
 #include <dirent.h>
 #include <sys/types.h>
 
-void parseInput(char* args[], char* line);
+int parseInput(char* args[], char* line);
 int cmdExist(char* cmd, char* path);
 
 int main()
 {
 	system("clear");		/*	might not be allowed */
 	
-	char* host_name = (char* ) malloc(64);
+	char host_name[64];
 	char* user_name = (char* ) malloc(64);
 	char curr_dir[1024];
 	
@@ -20,7 +20,7 @@ int main()
 	char* args1 = (char* ) malloc(12);
 	char* args2 = (char* ) malloc(12);
 	char* args3 = (char* ) malloc(12);
-	char* args[] = {args0, args1, args2, args3, (char *)NULL};
+	char* args[] = {args0, args1, args2, args3, (char *)NULL};			// FIGURE THIS OUT!
 	char line[256];
 	
 	/* maybe put below 2 functions inside loop? */
@@ -34,8 +34,10 @@ int main()
 		printf("%s@%s:%s $ ", host_name, user_name, curr_dir);
 		
 		fgets(line, sizeof(line), stdin);
-		parseInput(args, line);
-		// printf("\n%s %s %s %s\n", args[0], args[1], args[2], args[3]);
+		int numArgs = parseInput(args, line);
+		if(numArgs == 0)
+			continue;
+		printf("\n%s %s %s %s\n", args[0], args[1], args[2], args[3]);
 
 		if(strcmp(args[0], "cd") == 0 || strcmp(args[0], "ioacct") == 0 || strcmp(args[0], "exit") == 0) {
 			if (strcmp(args[0], "cd") == 0) {
@@ -49,7 +51,6 @@ int main()
 			}
 		}
 		else {
-			// envpath = getenv("PATH");
 			// Searching for command here
 			if(cmdExist(args[0], getenv("PATH")) == 1)
 				// command found in PATH
@@ -60,13 +61,18 @@ int main()
 				printf("Command '%s' NOT FOUND!\n", args[0]);
 			
 		}
+		int x=0;
+		for(;x<numArgs-1; x++) {
+			free(args[x]); printf(".%d.", x); }
 	}
 }	
 
-void parseInput(char* args[], char* line)
+int parseInput(char* args[], char* line)
 {
 	char* token;
 	token = strtok(line, " \n");
+	if(token == NULL)
+		return 0;
 	args[0] = strdup(token);
 	int i=1;
 	while(token = strtok(NULL, " ")) {
@@ -76,6 +82,7 @@ void parseInput(char* args[], char* line)
 	size_t ln = strlen(args[i-1])-1; 
 	if(args[i-1][ln] == '\n') 
 		args[i-1][ln] = '\0';
+	return i+1;
 }
 
 int cmdExist(char* cmd, char* path) 
@@ -85,7 +92,7 @@ int cmdExist(char* cmd, char* path)
 	char* token;
 	
 	// first path, strtok on 'path'
-	token = strtok(path, ":");
+	token = strtok(strdup(path), ":");
 	d = opendir(strdup(token));
 	if (d) 
 	{
