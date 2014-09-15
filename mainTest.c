@@ -10,20 +10,22 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdbool.h>
+#include <signal.h>
 
 #define MAX_MEM_SIZE 256
 #define MAX_REDIR_FILESIZE 64
 
 int parseInput(char* args[], char* line, bool* is_in_redir, bool* is_out_redir, bool* is_append, char* redir_file);
 char* cmdExist(char* cmd, char* path);
-void doIoacct(pid_t pid);
+int doIoacct(pid_t pid, char* read_bytes, char* write_bytes, bool* read_io);
+void block_sigtou_signal();
 
 int main()
 {
 	system("clear");		/*	might not be allowed */
 
 	char host_name[MAX_MEM_SIZE];
-	char* user_name;
+	char* user_name;		// check if we can use this with beter login function, maybe needs allocation first
 	char* curr_dir;
 	char* last_dir = NULL;			// maybe set all pointers to NULL at initialization
 
@@ -42,6 +44,11 @@ int main()
 	bool is_in_redir;
 	bool is_out_redir;
 	bool is_append;
+	bool is_one_pipe;
+	bool is_two_pipe;
+	char* read_bytes;
+	char* write_bytes;
+	bool read_io;
 
 	while(1)
 	{
@@ -51,6 +58,11 @@ int main()
 		is_in_redir = false;
 		is_out_redir = false;
 		is_append = false;
+		is_one_pipe = false;
+		is_two_pipe = false;
+		// read_bytes = "-99";	// doesnt let me do this...
+		// write_bytes = "-99";
+		read_io = false;
 
 
 		// Reset arguments
@@ -58,6 +70,7 @@ int main()
 
 		// Print prompt
 		gethostname(host_name, sizeof(host_name));
+		// user_name = getpwuid(getuid())->pw_name;			// non deprecated way, but seg fault with ioacct
 		user_name = getlogin();
 		curr_dir = getcwd(NULL, 0);
 		printf("%s@%s:%s $ ", host_name, user_name, curr_dir);
@@ -74,8 +87,6 @@ int main()
 		if (is_append) printf("append ");
 		if (is_out_redir || is_in_redir || is_append) printf("file: %s", redir_file); */
 
-		printf("\n%s %s %s %s\n", args[0], args[1], args[2], args[3]);
-
 		// Run command
 		if(strcmp(args[0], "ioacct") == 0) {
 			int i = 0;
@@ -83,6 +94,7 @@ int main()
 				args[i] = args[i+1];
 			}
 			is_ioacct_cmd = true;
+			num_args--;
 		}
 
 		// Check if the command should be a background process
@@ -96,6 +108,8 @@ int main()
 			}
 			is_background_process = true;
 		}
+		
+		// printf("\n%s %s %s %s\n", args[0], args[1], args[2], args[3]);
 
 		if(strcmp(args[0], "cd") == 0 || strcmp(args[0], "exit") == 0) {
 			if (strcmp(args[0], "cd") == 0) {
@@ -114,8 +128,18 @@ int main()
 			else if (strcmp(args[0], "exit") == 0) {
 				return (args[1] == NULL) ? 0 : atoi(args[1]);
 			}
-			if(is_ioacct_cmd)
-				doIoacct(getpid());
+			if(is_ioacct_cmd) {
+					doIoacct(getpid(), read_bytes, write_bytes, &read_io);
+					
+					if(!read_io) {
+							printf("read bytes: -1\n");
+							printf("write bytes: -1\n");
+						}
+						else {
+							printf("read bytes: %s\n", read_bytes);
+							printf("write bytes: %s\n", write_bytes);
+						}
+			}
 		}
 		else {
 			// Searching for command here
@@ -159,17 +183,34 @@ int main()
 					exit(EXIT_FAILURE);
 				}
 				else if (is_background_process) {
+					block_sigtou_signal();
+					
 					printf("back!");
 					pid_t child_finished = waitpid(-1, (int *)NULL, WNOHANG);
-
-					if(is_ioacct_cmd)
-						doIoacct(child);	// <-- WEIRDDDDDDDDDD
 				}
 				else {
-					pid_t child_finished = waitpid(-1, (int *)NULL, 0);
-
-					if(is_ioacct_cmd)
-						doIoacct(child);
+					block_sigtou_signal();
+					
+					if(is_ioacct_cmd) {
+						pid_t child_finished = waitpid(-1, (int *)NULL, WNOHANG);
+						while(true) {
+							sleep(.05);
+							if(doIoacct(child, read_bytes, write_bytes, &read_io) == 0) {
+								break;
+							}
+						}
+						if(!read_io) {
+							printf("read bytes: -1\n");
+							printf("write bytes: -1\n");
+						}
+						else {
+							printf("read bytes: %s\n", read_bytes);
+							printf("write bytes: %s\n", write_bytes);
+						}
+					}
+					else {
+						pid_t child_finished = waitpid(-1, (int *)NULL, 0);
+					}
 				}
 			}
 
@@ -187,6 +228,8 @@ int main()
 			// printf("2");
 		}
 		free(curr_dir);
+		// free(user_name);
+		// free(pass);
 	}
 	free(curr_dir);
 	free(last_dir);
@@ -198,6 +241,19 @@ int parseInput(char* args[], char* line, bool* is_out_redir, bool* is_in_redir, 
 
 	int num_args = 0;
 	while(token) {
+		
+		/*									*** piping code, waiting for xavier implementation ***
+		if(token == '|' && !*is_one_pipe) {
+			*is_one_pipe = true;
+			
+			continue;
+		}
+		else if(token == '|' && *is_one_pipe) {
+			
+			continue;
+		}
+		*/
+		
 		args[num_args++] = strdup(token);
 
 		token = strtok(NULL, " ");
@@ -223,9 +279,10 @@ int parseInput(char* args[], char* line, bool* is_out_redir, bool* is_in_redir, 
 			args[num_args-2] = NULL;
 			args[num_args-1] = NULL;
 			num_args -= 2;
+			
+		
 		}
 	}
-
 
 	return num_args;
 }
@@ -270,7 +327,8 @@ char* cmdExist(char* cmd, char* path)
 	closedir(d);
 	return NULL;
 }
-void doIoacct(pid_t pid)
+
+int doIoacct(pid_t pid, char* read_bytes, char* write_bytes, bool* read_io)
 {
 	char pid_c[10];
 	char filename[] = "/proc/";
@@ -278,20 +336,45 @@ void doIoacct(pid_t pid)
 	strcat(filename, pid_c);
 	strcat(filename, "/io");
 
-	printf("%s\n", filename);
+	//printf("%s\n", filename);
 
 	FILE* fp;
 	fp = fopen(filename, "r");
 	if(fp == NULL) {
-		printf("Cant open io file at %s, errno: %d\n", filename, errno);
+		// printf("Cant open io file at %s, errno: %d\n", filename, errno);
+		fflush(0);		// need this?
+		
+		if(!*read_io)
+			return -99;	// return this if no chane to read io
+			
+		return 0;
 	}
 	else {
 		char line[64];
 		int i=0;
 		for(;i<6; i++) {
 			fgets(line, sizeof(line), fp);
-			if(i == 4 || i == 5)
-				printf("%s", line);
+			if(i == 4 || i == 5) {
+				
+				// parsing out read/write byte data
+				char* byte_data = strtok(line, " ");
+				byte_data = strtok(NULL, " \n");
+				if(i==4)
+					strcpy(read_bytes, byte_data);
+				else if(i==5)
+					strcpy(write_bytes, byte_data);
+			}
+			*read_io = true;
 		}
+		return 1;
 	}
+}
+
+void block_sigtou_signal() {
+	sigset_t signal_set;
+	
+	sigemptyset(&signal_set);
+	sigaddset(&signal_set, SIGTTOU);
+	
+	sigprocmask(SIG_BLOCK, &signal_set, NULL);
 }
