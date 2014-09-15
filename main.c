@@ -111,7 +111,10 @@ int main()
 			{
 				argListRemove(&arg_list, 0);
 				argListAdd(&arg_list, cmdPath, 0);
-                                pid_t child = fork();
+
+				// To catch/cleanup old background processes
+				pid_t child_finished = waitpid(-1, (int *)NULL, WNOHANG);
+				pid_t child = fork();
 
 				if (child == 0)
 				{
@@ -150,26 +153,13 @@ int main()
 				else if (is_background_process)
 				{
 //					printf("back!\n");
-//					pid_t child_finished = waitpid(-1, (int *)NULL, WNOHANG);
-
-					int status;
-					pid_t pid;
-					while((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-						printf("[proc %d exited with code %d]\n",
-						pid, WEXITSTATUS(status));
-					}
+					pid_t child_finished = waitpid(-1, (int *)NULL, WNOHANG);
 
 					if(is_ioacct_cmd) executeIoacct(child);
 				}
 				else
 				{
-//					pid_t child_finished = waitpid(-1, (int *)NULL, 0);
-					int status;
-					pid_t pid;
-					pid = waitpid(-1, &status, 0);
-					if (WIFEXITED(status)) {
-						printf("[proc %d exited with code %d]\n", pid, WEXITSTATUS(status));
-					}
+					pid_t child_finished = waitpid(-1, (int *)NULL, 0);
 
 					if(is_ioacct_cmd) executeIoacct(child);
 				}
@@ -243,13 +233,10 @@ char* getCmdPath(char* cmd, char* path)
 
 void executeIoacct(pid_t pid)
 {
-	char pid_c[10];
-	char filename[] = "/proc/";
-	snprintf(pid_c, 10, "%d", (int)pid);
-	strcat(filename, pid_c);
-	strcat(filename, "/io");
+	char filename[64];
+	sprintf(filename, "/proc/%d/io", (int)pid);
 
-	printf("%s\n", filename);
+//	printf("%s\n", filename);
 
 	FILE* fp;
 	fp = fopen(filename, "r");
