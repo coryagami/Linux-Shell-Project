@@ -21,7 +21,7 @@
 
 void parseInput(arglist* arg_list, char* line, bool* is_in_redir, bool* is_out_redir, bool* is_append, char* redir_file);
 char* getCmdPath(char* cmd, char* path);
-void executeIoacct(pid_t pid);
+void executeIoacct(pid_t pid, int* read_bytes, int* write_bytes);
 
 int main()
 {
@@ -34,8 +34,8 @@ int main()
 	char redir_file[MAX_REDIR_FILE_SIZE];
 	arglist arg_list;
 
-	char* read_bytes = NULL;
-	char* write_bytes = NULL;
+	int read_bytes = 0;
+	int write_bytes = 0;
 
 	// Flags
         bool is_ioacct_cmd;
@@ -44,7 +44,7 @@ int main()
         bool is_out_redir;
         bool is_append;
 
-	for(;;)
+	while(1)
 	{
                 // Reset flags
                 is_ioacct_cmd = false;
@@ -56,6 +56,7 @@ int main()
 		// Print prompt
 		gethostname(host_name, sizeof(host_name));
 		user_name = getlogin();
+//		user_name = getpwuid(getuid())->pw_name;
 		curr_dir = getcwd(NULL, 0);
 		printf("%s@%s:%s $ ", host_name, user_name, curr_dir);
 
@@ -99,7 +100,11 @@ int main()
 			if(last_dir != NULL) free(last_dir);
 			last_dir = curr_dir;
 
-			if(is_ioacct_cmd) executeIoacct(getpid());
+			if(is_ioacct_cmd)
+			{
+				printf("bytes read: -1\n");
+				printf("bytes written: -1\n");
+			}
 
 		}
 		else
@@ -155,13 +160,20 @@ int main()
 //					printf("back!\n");
 					pid_t child_finished = waitpid(-1, (int *)NULL, WNOHANG);
 
-					if(is_ioacct_cmd) executeIoacct(child);
+//					if(is_ioacct_cmd) executeIoacct(child, &read_bytes, &write_bytes);
+				}
+				else if (is_ioacct_cmd)
+				{
+					while(waitpid(-1, (int *)NULL, WNOHANG) == 0)
+					{
+						executeIoacct(child, &read_bytes, &write_bytes);
+					}
+					printf("bytes read: %d\n", read_bytes);
+					printf("bytes written: %d\n", write_bytes);
 				}
 				else
 				{
 					pid_t child_finished = waitpid(-1, (int *)NULL, 0);
-
-					if(is_ioacct_cmd) executeIoacct(child);
 				}
 			}
 			else
@@ -172,6 +184,7 @@ int main()
 
 		// Memory clean up
 		argListDestroy(&arg_list);
+//		free(user_name);
 
 	}
 	return 0;
@@ -231,7 +244,7 @@ char* getCmdPath(char* cmd, char* path)
 	return NULL;
 }
 
-void executeIoacct(pid_t pid)
+void executeIoacct(pid_t pid, int* read_bytes, int* write_bytes)
 {
 	char filename[64];
 	sprintf(filename, "/proc/%d/io", (int)pid);
@@ -242,24 +255,25 @@ void executeIoacct(pid_t pid)
 	fp = fopen(filename, "r");
 	if(fp == NULL)
 	{
-		printf("read bytes: -1\n");
-		printf("write bytes: -1\n");
-	}
+//		printf("read bytes: -1\n");
+//		printf("write bytes: -1\n");
+	;}
         else
 	{
                 char line[64];
                 int i = 0;
-                for(;i < 6; i++) {
+                for(;i < 2; i++)
+		{
                         fgets(line, sizeof(line), fp);
-                        if(i == 4 || i == 5)
+                        if(i == 0 || i == 1)
 			{
-				char* byte_data = strtok(line, " ");
+				char* byte_data = strtok(line, " \n");
 				byte_data = strtok(NULL, " \n");
 
-				if(i == 4)
-					printf("read bytes: %s\n", byte_data);
-				else if(i == 5)
-					printf("write bytes: %s\n", byte_data);
+				if(i == 0)
+					*read_bytes = atoi(byte_data);
+				else if(i == 1)
+					*write_bytes = atoi(byte_data);
 			}
                 }
         }
