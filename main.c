@@ -20,6 +20,10 @@
 #define PATH "PATH"
 #define USER "USER"
 
+void exec(arglist* arg_list, arglist* arg_list2, arglist* arg_list3, char* curr_dir, char* last_dir, size_t num_pipes);
+void execNoPipes(arglist* arg_list, bool is_background_process, bool is_ioacct_cmd);
+void execOnePipe(arglist* arg_list, arglist* arg_list2, bool is_background_process);
+void execTwoPipes(arglist* arg_list, arglist* arg_list2, arglist* arg_list3, bool is_background_process);
 bool parseInput(arglist* arg_list, char* line);
 bool parseBG(arglist* arg_list);
 bool parseInRedir(arglist* arg_list, char* redir_file);
@@ -37,151 +41,47 @@ int main()
 	char* user_name = NULL;
 	char* curr_dir = NULL;
 	char* last_dir = NULL;
-
 	char line[MAX_SIZE];
-	char redir_file[MAX_FILENAME_SIZE];
+
 	arglist arg_list, arg_list2, arg_list3;
 
-	int read_bytes = 0;
-	int write_bytes = 0;
-
-	// Flags
-        bool is_ioacct_cmd;
-        bool is_background_process;
-        bool is_in_redir;
-        bool is_out_redir;
-        bool is_append_redir;
+	size_t num_pipes = 0;
 
 	while(1)
 	{
 		reapChildren();
+		num_pipes = 0;
 
 		// Print prompt
 		gethostname(host_name, sizeof(host_name));
 		user_name = strdup(getenv(USER));
-//		user_name = getlogin();
-//		user_name = getpwuid(getuid())->pw_name;
 		curr_dir = getcwd(NULL, 0);
 		printf("%s@%s:%s $ ", host_name, user_name, curr_dir);
 
 		// Parse input
 		fgets(line, sizeof(line), stdin);
-		
+
 		argListCreate(&arg_list, INIT_ARG_SIZE);
 		argListCreate(&arg_list2, INIT_ARG_SIZE);
 		argListCreate(&arg_list3, INIT_ARG_SIZE);
-		
+
 		if (!parseInput(&arg_list, line))
 			continue;
-			
-		if(parsePipes(&arg_list, &arg_list2)) {};
+
+		if(parsePipes(&arg_list, &arg_list2))
+		{
 			parsePipes(&arg_list2, &arg_list3);
-			
-		argListPrint(&arg_list);
-		argListPrint(&arg_list2);
-		argListPrint(&arg_list3);			
-
-		is_background_process = parseBG(&arg_list);
-		is_in_redir = parseInRedir(&arg_list, redir_file);
-		is_out_redir = parseOutRedir(&arg_list, redir_file);
-		is_append_redir = parseAppendRedir(&arg_list, redir_file);
-		is_ioacct_cmd = parseIoacct(&arg_list);
-
-		if(strcmp(arg_list.args[0], "exit") == 0)
-		{
-			reapChildren();
-			return (arg_list.size == 1) ? 0 : atoi(arg_list.args[1]);
+			num_pipes = 2;
 		}
+		if(arg_list2.args[0] != NULL && arg_list3.args[0] == NULL)
+			num_pipes = 1;
 
-		if(strcmp(arg_list.args[0], "cd") == 0 && !is_background_process)
-		{
-			if(arg_list.size == 1 || strcmp(arg_list.args[1], "~") == 0)
-				chdir(getpwuid(getuid())->pw_dir);
-			else if(strcmp(arg_list.args[1], "-") == 0)
-				chdir(last_dir);
-			else
-				chdir(arg_list.args[1]);
+//		printf("np: %d\n", num_pipes);
+//		argListPrint(&arg_list);
+//		argListPrint(&arg_list2);
+//		argListPrint(&arg_list3);
 
-			if(last_dir != NULL) free(last_dir);
-			last_dir = curr_dir;
-
-			if(is_ioacct_cmd)
-			{
-				printf("bytes read: -1\n");
-				printf("bytes written: -1\n");
-			}
-		}
-		else
-		{
-
-			char* cmdPath = getCmdPath(arg_list.args[0], getenv(PATH));
-
-			if (cmdPath != NULL)
-			{
-				argListRemove(&arg_list, 0);
-				argListAdd(&arg_list, cmdPath, 0);
-
-				pid_t child = fork();
-
-				if (child == 0)
-				{
-					fflush(0);
-
-					// Input redirect
-					if (is_in_redir)
-					{
-						int fd = open(redir_file, O_RDONLY);
-						dup2(fd, STDIN_FILENO);
-						close(fd);
-					}
-
-					// Output redirect
-					if (is_out_redir)
-					{
-						int fd = creat(redir_file, 0644);
-						dup2(fd, STDOUT_FILENO);
-						close(fd);
-					}
-
-					// Append redirect
-					if (is_append_redir)
-					{
-						int fd = open(redir_file, O_WRONLY|O_APPEND);
-						dup2(fd, STDOUT_FILENO);
-						close(fd);
-					}
-
-					int rtn = execv(cmdPath, arg_list.args);
-				}
-				else if (child < 0)
-				{
-					exit(EXIT_FAILURE);
-				}
-				else if (is_background_process)
-				{
-					pid_t child_finished = waitpid(-1, (int *)NULL, WNOHANG);
-
-					// if(is_ioacct_cmd) executeIoacct(child, &read_bytes, &write_bytes);
-				}
-				else if (is_ioacct_cmd)
-				{
-					while(waitpid(-1, (int *)NULL, WNOHANG) == 0)
-						executeIoacct(child, &read_bytes, &write_bytes);
-
-					printf("bytes read: %d\n", read_bytes);
-					printf("bytes written: %d\n", write_bytes);
-				}
-				else
-				{
-					pid_t child_finished = waitpid(-1, (int *)NULL, 0);
-				}
-			}
-			else
-			{
-				if (strcmp(arg_list.args[0], "cd") != 0)
-					printf("Command '%s' NOT FOUND!\n", arg_list.args[0]);
-			}
-		}
+		exec(&arg_list, &arg_list2, &arg_list3, curr_dir, last_dir, num_pipes);
 
 		// Memory clean up
 		argListDestroy(&arg_list);
@@ -192,6 +92,313 @@ int main()
 
 	}
 	return 0;
+}
+
+void exec(arglist* arg_list, arglist* arg_list2, arglist* arg_list3, char* curr_dir, char* last_dir, size_t num_pipes)
+{
+	char redir_file[MAX_FILENAME_SIZE];
+
+	int read_bytes = 0;
+	int write_bytes = 0;
+
+	bool is_background_process = parseBG(arg_list);
+	bool is_ioacct_cmd = parseIoacct(arg_list);
+
+	if(strcmp(arg_list->args[0], "exit") == 0)
+	{
+		reapChildren();
+		if(arg_list->size == 1)
+			exit(0);
+		else
+			exit(atoi(arg_list->args[1]));
+	}
+	else if(strcmp(arg_list->args[0], "cd") == 0 && !is_background_process)
+	{
+		if(arg_list->size == 1 || strcmp(arg_list->args[1], "~") == 0)
+			chdir(getpwuid(getuid())->pw_dir);
+		else if(strcmp(arg_list->args[1], "-") == 0)
+			chdir(last_dir);
+		else
+			chdir(arg_list->args[1]);
+
+		if(last_dir != NULL) free(last_dir);
+		last_dir = curr_dir;
+
+		if(is_ioacct_cmd)
+		{
+			printf("bytes read: -1\n");
+			printf("bytes written: -1\n");
+		}
+	}
+	else
+	{
+		if(num_pipes == 0)
+			execNoPipes(arg_list, is_background_process, is_ioacct_cmd);
+		else if(num_pipes == 1)
+			execOnePipe(arg_list, arg_list2, is_background_process);
+		else if (num_pipes == 2)
+			execTwoPipes(arg_list, arg_list2, arg_list3, is_background_process);
+	}
+}
+
+void execNoPipes(arglist* arg_list, bool is_background_process, bool is_ioacct_cmd)
+{
+	char redir_file[MAX_FILENAME_SIZE];
+
+	bool is_in_redir = parseInRedir(arg_list, redir_file);
+	bool is_out_redir = parseOutRedir(arg_list, redir_file);
+	bool is_append_redir = parseAppendRedir(arg_list, redir_file);
+
+	char* cmdPath = getCmdPath(arg_list->args[0], getenv(PATH));
+
+	int read_bytes = 0;
+	int write_bytes = 0;
+
+	if (cmdPath != NULL)
+	{
+		argListRemove(arg_list, 0);
+		argListAdd(arg_list, cmdPath, 0);
+
+		pid_t child = fork();
+
+		if (child == 0)
+		{
+			fflush(0);
+
+			// Input redirect
+			if (is_in_redir)
+			{
+				int fd = open(redir_file, O_RDONLY);
+				dup2(fd, STDIN_FILENO);
+				close(fd);
+			}
+
+			// Output redirect
+			if (is_out_redir)
+			{
+				int fd = creat(redir_file, 0644);
+				dup2(fd, STDOUT_FILENO);
+				close(fd);
+			}
+
+			// Append redirect
+			if (is_append_redir)
+			{
+				int fd = open(redir_file, O_WRONLY|O_APPEND);
+				dup2(fd, STDOUT_FILENO);
+				close(fd);
+			}
+
+			int rtn = execv(cmdPath, arg_list->args);
+		}
+		else if (child < 0)
+		{
+			exit(EXIT_FAILURE);
+		}
+		else if (is_background_process)
+		{
+			pid_t child_finished = waitpid(-1, (int *)NULL, WNOHANG);
+
+			// if(is_ioacct_cmd) executeIoacct(child, &read_bytes, &write_bytes);
+		}
+		else if (is_ioacct_cmd)
+		{
+			while(waitpid(-1, (int *)NULL, WNOHANG) == 0)
+				executeIoacct(child, &read_bytes, &write_bytes);
+
+			printf("bytes read: %d\n", read_bytes);
+			printf("bytes written: %d\n", write_bytes);
+		}
+		else
+		{
+			pid_t child_finished = waitpid(-1, (int *)NULL, 0);
+		}
+	}
+	else
+	{
+		if (strcmp(arg_list->args[0], "cd") != 0)
+			printf("Command '%s' NOT FOUND!\n", arg_list->args[0]);
+	}
+}
+
+void execOnePipe(arglist* arg_list, arglist* arg_list2, bool is_background_process)
+{
+	int pipefd[2];
+	pipe(pipefd);
+
+	char* cmdPath1 = getCmdPath(arg_list->args[0], getenv(PATH));
+	char* cmdPath2 = getCmdPath(arg_list2->args[0], getenv(PATH));
+
+
+	char redir_file[MAX_FILENAME_SIZE];
+	bool is_in_redir = parseInRedir(arg_list2, redir_file);
+	bool is_out_redir = parseOutRedir(arg_list2, redir_file);
+	bool is_append_redir = parseAppendRedir(arg_list2, redir_file);
+
+
+	pid_t child = fork();
+
+	if (child == 0)
+	{
+		dup2(pipefd[0], 0);
+		close(pipefd[0]);
+		close(pipefd[1]);
+
+
+			// Input redirect
+			if (is_in_redir)
+			{
+				printf("Ambiguous input: input redirect conflicts with pipe\n");
+			}
+
+			// Output redirect
+			if (is_out_redir)
+			{
+				int fd = creat(redir_file, 0644);
+				dup2(fd, STDOUT_FILENO);
+				close(fd);
+			}
+
+			// Append redirect
+			if (is_append_redir)
+			{
+				int fd = open(redir_file, O_WRONLY|O_APPEND);
+				dup2(fd, STDOUT_FILENO);
+				close(fd);
+			}
+
+
+		int rtn = execv(cmdPath2, arg_list2->args);
+	}
+	else
+	{
+		pid_t child2 = fork();
+
+		if (child2 == 0)
+		{
+			dup2(pipefd[1], 1);
+			close(pipefd[0]);
+			close(pipefd[1]);
+			int rtn = execv(cmdPath1, arg_list->args);
+		}
+	}
+
+	close(pipefd[0]);
+	close(pipefd[1]);
+
+	int i = 0;
+	pid_t child_finished;
+	for(; i < 2; i++)
+		child_finished = waitpid(-1, (int *)NULL, 0);
+
+
+}
+
+void execTwoPipes(arglist* arg_list, arglist* arg_list2, arglist* arg_list3, bool is_background_process)
+{
+	int pipefd[4];
+	pipe(pipefd);
+	pipe(pipefd + 2);
+
+	char* cmdPath1 = getCmdPath(arg_list->args[0], getenv(PATH));
+	char* cmdPath2 = getCmdPath(arg_list2->args[0], getenv(PATH));
+	char* cmdPath3 = getCmdPath(arg_list3->args[0], getenv(PATH));
+
+
+
+	char redir_file[MAX_FILENAME_SIZE];
+	bool is_in_redir = parseInRedir(arg_list3, redir_file);
+	bool is_out_redir = parseOutRedir(arg_list3, redir_file);
+	bool is_append_redir = parseAppendRedir(arg_list3, redir_file);
+
+	pid_t child = fork();
+
+	if (child == 0)
+	{
+		dup2(pipefd[1], 1);
+
+		close(pipefd[0]);
+		close(pipefd[1]);
+		close(pipefd[2]);
+		close(pipefd[3]);
+
+
+
+
+
+		int rtn = execv(cmdPath1, arg_list->args);
+	}
+	else
+	{
+		pid_t child2 = fork();
+
+		if (child2 == 0)
+		{
+			dup2(pipefd[0], 0);
+			dup2(pipefd[3], 1);
+
+			close(pipefd[0]);
+			close(pipefd[1]);
+			close(pipefd[2]);
+			close(pipefd[3]);
+
+
+
+
+
+			int rtn = execv(cmdPath2, arg_list2->args);
+		}
+		else
+		{
+			pid_t child3 = fork();
+
+			if (child3 == 0)
+			{
+				dup2(pipefd[2], 0);
+
+				close(pipefd[0]);
+				close(pipefd[1]);
+				close(pipefd[2]);
+				close(pipefd[3]);
+
+
+			// Input redirect
+			if (is_in_redir)
+			{
+				printf("Ambiguous input: input redirect conflicts with pipe\n");
+			}
+
+			// Output redirect
+			if (is_out_redir)
+			{
+				int fd = creat(redir_file, 0644);
+				dup2(fd, STDOUT_FILENO);
+				close(fd);
+			}
+
+			// Append redirect
+			if (is_append_redir)
+			{
+				int fd = open(redir_file, O_WRONLY|O_APPEND);
+				dup2(fd, STDOUT_FILENO);
+				close(fd);
+			}
+
+
+
+				int rtn = execv(cmdPath3, arg_list3->args);
+			}
+		}
+	}
+	close(pipefd[0]);
+	close(pipefd[1]);
+	close(pipefd[2]);
+	close(pipefd[3]);
+
+	int i = 0;
+	pid_t child_finished;
+	for(; i < 3; i++)
+		child_finished = waitpid(-1, (int *)NULL, 0);
 }
 
 bool parseInput(arglist* arg_list, char* line)
@@ -362,7 +569,7 @@ int parsePipes(arglist* left_args, arglist* right_args)
 		}
 	}
 	if(!found)
-		return;
+		return 0;
 
 	argListRemove(left_args, i);
 	int numToRemove = left_args->size - i;
@@ -374,13 +581,13 @@ int parsePipes(arglist* left_args, arglist* right_args)
 		if(strcmp(left_args->args[i], "|") == 0)
 			another_pipe = true;
 	}
-	
+
 	int j=0;
 	for(;j < numToRemove; j++)
 	{
 		argListRemove(left_args, helper);
 	}
-	
+
 	if(another_pipe)
 		return 1;
 return 0;
