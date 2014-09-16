@@ -16,10 +16,14 @@
 
 #define MAX_SIZE 256
 #define INIT_ARG_SIZE 5
-#define MAX_REDIR_FILE_SIZE 64
+#define MAX_FILENAME_SIZE 64
 
-
-void parseInput(arglist* arg_list, char* line, bool* is_in_redir, bool* is_out_redir, bool* is_append, char* redir_file);
+bool parseInput(arglist* arg_list, char* line);
+bool parseBG(arglist* arg_list);
+bool parseInRedir(arglist* arg_list, char* redir_file);
+bool parseOutRedir(arglist* arg_list, char* redir_file);
+bool parseAppendRedir(arglist* arg_list, char* redir_file);
+bool parseIoacct(arglist* arg_list);
 char* getCmdPath(char* cmd, char* path);
 void executeIoacct(pid_t pid, int* read_bytes, int* write_bytes);
 
@@ -31,7 +35,7 @@ int main()
 	char* last_dir = NULL;
 
 	char line[MAX_SIZE];
-	char redir_file[MAX_REDIR_FILE_SIZE];
+	char redir_file[MAX_FILENAME_SIZE];
 	arglist arg_list;
 
 	int read_bytes = 0;
@@ -42,17 +46,10 @@ int main()
         bool is_background_process;
         bool is_in_redir;
         bool is_out_redir;
-        bool is_append;
+        bool is_append_redir;
 
 	while(1)
 	{
-                // Reset flags
-                is_ioacct_cmd = false;
-                is_background_process = false;
-                is_in_redir = false;
-                is_out_redir = false;
-                is_append = false;
-
 		// Print prompt
 		gethostname(host_name, sizeof(host_name));
 		user_name = getlogin();
@@ -63,27 +60,14 @@ int main()
 		// Parse input
 		fgets(line, sizeof(line), stdin);
 		argListCreate(&arg_list, INIT_ARG_SIZE);
-		parseInput(&arg_list, line, &is_in_redir, &is_out_redir, &is_append, redir_file);
+		if (!parseInput(&arg_list, line))
+			continue;
 
-		if (arg_list.size == 0) continue;
-
-		if (strcmp(arg_list.args[0], "ioacct") == 0)
-		{
-			argListRemove(&arg_list, 0);
-			is_ioacct_cmd = true;
-		}
-
-                // Check if the command should be a background process
-                size_t last_arg_len = strlen(arg_list.args[arg_list.size-1]);
-                if(arg_list.args[arg_list.size-1][last_arg_len-1] == '&')
-		{
-                        if (last_arg_len > 1)
-                                arg_list.args[arg_list.size-1][last_arg_len-1] = '\0';
-                        else if(last_arg_len == 1)
-				argListRemove(&arg_list, arg_list.size-1);
-
-                        is_background_process = true;
-                }
+		is_background_process = parseBG(&arg_list);
+		is_in_redir = parseInRedir(&arg_list, redir_file);
+		is_out_redir = parseOutRedir(&arg_list, redir_file);
+		is_append_redir = parseAppendRedir(&arg_list, redir_file);
+		is_ioacct_cmd = parseIoacct(&arg_list);
 
 		if(strcmp(arg_list.args[0], "exit") == 0)
 			return (arg_list.size == 1) ? 0 : atoi(arg_list.args[1]);
@@ -105,12 +89,11 @@ int main()
 				printf("bytes read: -1\n");
 				printf("bytes written: -1\n");
 			}
-
 		}
 		else
 		{
-			char* cmdPath = getCmdPath(arg_list.args[0], getenv("PATH"));
 
+			char* cmdPath = getCmdPath(arg_list.args[0], getenv("PATH"));
 
 			if (cmdPath != NULL)
 			{
@@ -142,7 +125,7 @@ int main()
 					}
 
 					// Append redirect
-					if (is_append)
+					if (is_append_redir)
 					{
 						int fd = open(redir_file, O_WRONLY|O_APPEND);
 						dup2(fd, STDOUT_FILENO);
@@ -157,17 +140,15 @@ int main()
 				}
 				else if (is_background_process)
 				{
-//					printf("back!\n");
 					pid_t child_finished = waitpid(-1, (int *)NULL, WNOHANG);
 
-//					if(is_ioacct_cmd) executeIoacct(child, &read_bytes, &write_bytes);
+					// if(is_ioacct_cmd) executeIoacct(child, &read_bytes, &write_bytes);
 				}
 				else if (is_ioacct_cmd)
 				{
 					while(waitpid(-1, (int *)NULL, WNOHANG) == 0)
-					{
 						executeIoacct(child, &read_bytes, &write_bytes);
-					}
+
 					printf("bytes read: %d\n", read_bytes);
 					printf("bytes written: %d\n", write_bytes);
 				}
@@ -178,19 +159,19 @@ int main()
 			}
 			else
 			{
-				printf("Command '%s' NOT FOUND!\n", arg_list.args[0]);
+				if (strcmp(arg_list.args[0], "cd") != 0)
+					printf("Command '%s' NOT FOUND!\n", arg_list.args[0]);
 			}
 		}
 
 		// Memory clean up
 		argListDestroy(&arg_list);
-//		free(user_name);
 
 	}
 	return 0;
 }
 
-void parseInput(arglist* arg_list, char* line, bool* is_in_redir, bool* is_out_redir, bool* is_append, char* redir_file)
+bool parseInput(arglist* arg_list, char* line)
 {
 	char* token = strtok(line, " \n");
 
@@ -200,18 +181,78 @@ void parseInput(arglist* arg_list, char* line, bool* is_in_redir, bool* is_out_r
 		token = strtok(NULL, " \n");
 	}
 
-       if (arg_list->size >= 3) {
-                if (strcmp(arg_list->args[arg_list->size-2], "<") == 0) *is_in_redir = true;
-                if (strcmp(arg_list->args[arg_list->size-2], ">") == 0) *is_out_redir = true;
-                if (strcmp(arg_list->args[arg_list->size-2], ">>") == 0) *is_append = true;
+	// Error checking
+	if (arg_list->size == 0) return false;
+	if (arg_list->size == 1 && strcmp(arg_list->args[0], "ioacct") == 0)
+	{
+		printf("Usage: ioacct <command>\n");
+		return false;
+	}
 
-                if (*is_out_redir || *is_in_redir || *is_append) {
-			strcpy(redir_file, arg_list->args[arg_list->size-1]);
-			argListRemove(arg_list, arg_list->size-1);
-			argListRemove(arg_list, arg_list->size-1);
-		}
-       }
+	return true;
 }
+
+bool parseBG(arglist* arg_list)
+{
+        size_t last_arg_len = strlen(arg_list->args[arg_list->size-1]);
+	if(arg_list->args[arg_list->size-1][last_arg_len-1] == '&')
+	{
+		if (last_arg_len > 1)
+			arg_list->args[arg_list->size-1][last_arg_len-1] = '\0';
+		else if(last_arg_len == 1)
+			argListRemove(arg_list, arg_list->size-1);
+
+		return true;
+	}
+	return false;
+}
+
+bool parseInRedir(arglist* arg_list, char* redir_file)
+{
+	if (arg_list->size >= 3 && strcmp(arg_list->args[arg_list->size-2], "<") == 0)
+	{
+		strcpy(redir_file, arg_list->args[arg_list->size-1]);
+		argListRemove(arg_list, arg_list->size-1);
+		argListRemove(arg_list, arg_list->size-1);
+		return true;
+	}
+	return false;
+}
+
+bool parseOutRedir(arglist* arg_list, char* redir_file)
+{
+	if (arg_list->size >= 3 && strcmp(arg_list->args[arg_list->size-2], ">") == 0)
+	{
+		strcpy(redir_file, arg_list->args[arg_list->size-1]);
+		argListRemove(arg_list, arg_list->size-1);
+		argListRemove(arg_list, arg_list->size-1);
+		return true;
+	}
+	return false;
+}
+
+bool parseAppendRedir(arglist* arg_list, char* redir_file)
+{
+	if (arg_list->size >= 3 && strcmp(arg_list->args[arg_list->size-2], ">>") == 0)
+	{
+		strcpy(redir_file, arg_list->args[arg_list->size-1]);
+		argListRemove(arg_list, arg_list->size-1);
+		argListRemove(arg_list, arg_list->size-1);
+		return true;
+	}
+	return false;
+}
+
+bool parseIoacct(arglist* arg_list)
+{
+	if (strcmp(arg_list->args[0], "ioacct") == 0)
+	{
+		argListRemove(arg_list, 0);
+		return true;
+	}
+	return false;
+}
+
 
 char* getCmdPath(char* cmd, char* path)
 {
@@ -246,21 +287,16 @@ char* getCmdPath(char* cmd, char* path)
 
 void executeIoacct(pid_t pid, int* read_bytes, int* write_bytes)
 {
-	char filename[64];
+	char filename[MAX_FILENAME_SIZE];
 	sprintf(filename, "/proc/%d/io", (int)pid);
 
-//	printf("%s\n", filename);
-
-	FILE* fp;
-	fp = fopen(filename, "r");
+	FILE* fp = fopen(filename, "r");
 	if(fp == NULL)
 	{
-//		printf("read bytes: -1\n");
-//		printf("write bytes: -1\n");
-	;}
+	}
         else
 	{
-                char line[64];
+                char line[MAX_SIZE];
                 int i = 0;
                 for(;i < 2; i++)
 		{
