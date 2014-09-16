@@ -4,6 +4,15 @@
 #include <string.h>
 #include "arglist.h"
 
+void argListPrint(arglist* arg_list)
+{
+	int i = 0;
+	for(; i < arg_list->size; i++)
+	{
+		printf("arg %d: %s\n", i, arg_list->args[i]);
+	}
+}
+
 void argListCreate(arglist* arg_list, size_t capacity)
 {
         arg_list->size = 0;
