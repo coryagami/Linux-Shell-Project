@@ -29,6 +29,7 @@ bool parseIoacct(arglist* arg_list);
 char* getCmdPath(char* cmd, char* path);
 void executeIoacct(pid_t pid, int* read_bytes, int* write_bytes);
 void reapChildren();
+int parsePipes(arglist* left_args, arglist* right_args);
 
 int main()
 {
@@ -39,7 +40,7 @@ int main()
 
 	char line[MAX_SIZE];
 	char redir_file[MAX_FILENAME_SIZE];
-	arglist arg_list;
+	arglist arg_list, arg_list2, arg_list3;
 
 	int read_bytes = 0;
 	int write_bytes = 0;
@@ -65,9 +66,20 @@ int main()
 
 		// Parse input
 		fgets(line, sizeof(line), stdin);
+		
 		argListCreate(&arg_list, INIT_ARG_SIZE);
+		argListCreate(&arg_list2, INIT_ARG_SIZE);
+		argListCreate(&arg_list3, INIT_ARG_SIZE);
+		
 		if (!parseInput(&arg_list, line))
 			continue;
+			
+		if(parsePipes(&arg_list, &arg_list2)) {};
+			parsePipes(&arg_list2, &arg_list3);
+			
+		argListPrint(&arg_list);
+		argListPrint(&arg_list2);
+		argListPrint(&arg_list3);			
 
 		is_background_process = parseBG(&arg_list);
 		is_in_redir = parseInRedir(&arg_list, redir_file);
@@ -173,8 +185,9 @@ int main()
 
 		// Memory clean up
 		argListDestroy(&arg_list);
+		argListDestroy(&arg_list2);
+		argListDestroy(&arg_list3);
 		free(user_name);
-
 		reapChildren();
 
 	}
@@ -332,4 +345,43 @@ void executeIoacct(pid_t pid, int* read_bytes, int* write_bytes)
 void reapChildren()
 {
 	while(waitpid(-1, (int *)NULL, WNOHANG) > 0) {};
+}
+
+int parsePipes(arglist* left_args, arglist* right_args)
+{
+	bool found = false;
+	bool another_pipe = false;
+
+	int i=0;
+	for(;i < left_args->size; i++)
+	{
+		if(strcmp(left_args->args[i], "|") == 0)
+		{
+			found = true;
+			break;
+		}
+	}
+	if(!found)
+		return;
+
+	argListRemove(left_args, i);
+	int numToRemove = left_args->size - i;
+	int helper = i;
+
+	for(;i < left_args->size; i++)
+	{
+		argListAdd(right_args, left_args->args[i], right_args->size);
+		if(strcmp(left_args->args[i], "|") == 0)
+			another_pipe = true;
+	}
+	
+	int j=0;
+	for(;j < numToRemove; j++)
+	{
+		argListRemove(left_args, helper);
+	}
+	
+	if(another_pipe)
+		return 1;
+return 0;
 }
