@@ -28,6 +28,7 @@ bool parseAppendRedir(arglist* arg_list, char* redir_file);
 bool parseIoacct(arglist* arg_list);
 char* getCmdPath(char* cmd, char* path);
 void executeIoacct(pid_t pid, int* read_bytes, int* write_bytes);
+void reapChildren();
 
 int main()
 {
@@ -52,6 +53,8 @@ int main()
 
 	while(1)
 	{
+		reapChildren();
+
 		// Print prompt
 		gethostname(host_name, sizeof(host_name));
 		user_name = strdup(getenv(USER));
@@ -73,7 +76,10 @@ int main()
 		is_ioacct_cmd = parseIoacct(&arg_list);
 
 		if(strcmp(arg_list.args[0], "exit") == 0)
+		{
+			reapChildren();
 			return (arg_list.size == 1) ? 0 : atoi(arg_list.args[1]);
+		}
 
 		if(strcmp(arg_list.args[0], "cd") == 0 && !is_background_process)
 		{
@@ -102,9 +108,6 @@ int main()
 			{
 				argListRemove(&arg_list, 0);
 				argListAdd(&arg_list, cmdPath, 0);
-
-				// To catch/cleanup old background processes
-				pid_t child_finished = waitpid(-1, (int *)NULL, WNOHANG);
 
 				pid_t child = fork();
 
@@ -171,6 +174,8 @@ int main()
 		// Memory clean up
 		argListDestroy(&arg_list);
 		free(user_name);
+
+		reapChildren();
 
 	}
 	return 0;
@@ -322,4 +327,9 @@ void executeIoacct(pid_t pid, int* read_bytes, int* write_bytes)
                 }
 		fclose(fp);
         }
+}
+
+void reapChildren()
+{
+	while(waitpid(-1, (int *)NULL, WNOHANG) > 0) {};
 }
