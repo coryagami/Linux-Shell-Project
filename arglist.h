@@ -14,7 +14,7 @@ typedef struct arglist arglist;
 
 void argListCreate(arglist* arg_list, size_t capacity);
 void argListDestroy(arglist* arg_list);
-bool argListAdd(arglist* arg_list, char* arg);
+bool argListAdd(arglist* arg_list, const char* arg, size_t index);
 bool argListRemove(arglist* arg_list, size_t index);
 
 #endif
