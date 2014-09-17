@@ -17,6 +17,8 @@
 #define MAX_SIZE 256
 #define INIT_ARG_SIZE 5
 #define MAX_FILENAME_SIZE 64
+#define PATH "PATH"
+#define USER "USER"
 
 bool parseInput(arglist* arg_list, char* line);
 bool parseBG(arglist* arg_list);
@@ -52,7 +54,8 @@ int main()
 	{
 		// Print prompt
 		gethostname(host_name, sizeof(host_name));
-		user_name = getlogin();
+		user_name = strdup(getenv(USER));
+//		user_name = getlogin();
 //		user_name = getpwuid(getuid())->pw_name;
 		curr_dir = getcwd(NULL, 0);
 		printf("%s@%s:%s $ ", host_name, user_name, curr_dir);
@@ -93,7 +96,7 @@ int main()
 		else
 		{
 
-			char* cmdPath = getCmdPath(arg_list.args[0], getenv("PATH"));
+			char* cmdPath = getCmdPath(arg_list.args[0], getenv(PATH));
 
 			if (cmdPath != NULL)
 			{
@@ -102,6 +105,7 @@ int main()
 
 				// To catch/cleanup old background processes
 				pid_t child_finished = waitpid(-1, (int *)NULL, WNOHANG);
+
 				pid_t child = fork();
 
 				if (child == 0)
@@ -166,6 +170,7 @@ int main()
 
 		// Memory clean up
 		argListDestroy(&arg_list);
+		free(user_name);
 
 	}
 	return 0;
@@ -306,11 +311,15 @@ void executeIoacct(pid_t pid, int* read_bytes, int* write_bytes)
 				char* byte_data = strtok(line, " \n");
 				byte_data = strtok(NULL, " \n");
 
-				if(i == 0)
-					*read_bytes = atoi(byte_data);
-				else if(i == 1)
-					*write_bytes = atoi(byte_data);
+				if (byte_data != NULL)
+				{
+					if(i == 0)
+						*read_bytes = atoi(byte_data);
+					else if(i == 1)
+						*write_bytes = atoi(byte_data);
+				}
 			}
                 }
+		fclose(fp);
         }
 }
