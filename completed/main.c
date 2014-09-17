@@ -166,43 +166,12 @@ void execCmd(arglist* arg_list, bool is_background_process, bool is_ioacct_cmd)
 	    	                   is_append_redir, redir_file, cmd_path[i], pipefd);
 	}
 
-/*
-	if (pipes == 0)
-	{
-		if (is_ioacct_cmd)
-			child = forkAChild(&arg_list[0], pipes, 1, is_background_process, is_ioacct_cmd, is_in_redir, is_out_redir,
-	       		                    is_append_redir, redir_file, cmd_path[0], pipefd);
-		else
-			forkAChild(&arg_list[0], pipes, 1, is_background_process, is_ioacct_cmd, is_in_redir, is_out_redir,
-	    	                   is_append_redir, redir_file, cmd_path[0], pipefd);
-	}
-	if (pipes == 1)
-	{
-			forkAChild(&arg_list[0], pipes, 1, is_background_process, is_ioacct_cmd, is_in_redir, is_out_redir,
-	    	                   is_append_redir, redir_file, cmd_path[0], pipefd);
-			forkAChild(&arg_list[1], pipes, 2, is_background_process, is_ioacct_cmd, is_in_redir, is_out_redir,
-	    	                   is_append_redir, redir_file, cmd_path[1], pipefd);
-	}
-	if (pipes == 2)
-	{
-			forkAChild(&arg_list[0], pipes, 1, is_background_process, is_ioacct_cmd, is_in_redir, is_out_redir,
-	    	                   is_append_redir, redir_file, cmd_path[0], pipefd);
-			forkAChild(&arg_list[1], pipes, 2, is_background_process, is_ioacct_cmd, is_in_redir, is_out_redir,
-	    	                   is_append_redir, redir_file, cmd_path[1], pipefd);
-			forkAChild(&arg_list[2], pipes, 3, is_background_process, is_ioacct_cmd, is_in_redir, is_out_redir,
-	    	                   is_append_redir, redir_file, cmd_path[2], pipefd);
-	}
-*/
-
-
 	// Close pipes
 	i = 0;
 	for(; i < (pipes * 2); i++)
 		close(pipefd[i]);
 
-	if (is_background_process)
-		waitpid(-1, (int *)NULL, WNOHANG);
-	else if (is_ioacct_cmd)
+	if (is_ioacct_cmd)
 	{
 		while(waitpid(-1, (int *)NULL, WNOHANG) == 0)
 			executeIoacct(child, &read_bytes, &write_bytes);
@@ -214,7 +183,10 @@ void execCmd(arglist* arg_list, bool is_background_process, bool is_ioacct_cmd)
 	{
 		i = 0;
 		for(; i < (pipes + 1); i++)
-			waitpid(-1, (int *)NULL, 0);
+			if(!is_background_process)
+				waitpid(-1, (int *)NULL, 0);
+			else
+				waitpid(-1, (int *)NULL, WNOHANG);
 	}
 }
 
