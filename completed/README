@@ -1,0 +1,30 @@
+		 ____  ____   _   ____  ____ ____
+		|  _ \|  __| / \ |  _ \|  __|  _ \
+		| |_)|| |_  / _ \| |_) | |_ | |_)|
+		|   < |  _|( |_| )  __/|  _||   <
+		| |\ \| |__|  _  | |   | |__| |\ \
+		|_| \_\____|_| |_|_|   |____|_| \_\
+
+
+README
+
+  Reaper is a basic shell that supports command execution, I/O output, input and append redirection, as well as two pipes.
+  
+
+  Developers:
+    Cory Agami
+    Javier Lores
+
+  Source code:
+    arglist.h -- The header file for arglist.c that contains all the function declarations
+    arglist.c -- Contains a struct and operations to maintain a dynamic argument list.
+    parse.h -- The header file for parse.c that coantins all the function declarations
+    parse.c -- Contains all functions related to parsing user input including error handling
+    main.c -- Contains the logic of executing the commands.
+
+  Instructions:
+    To run reaper first compile the source code by typing make.
+    Then to run reaper, simply type ./reaper.x and the shell will launch.
+
+  Date Submitted:
+    September 18th, 2014
