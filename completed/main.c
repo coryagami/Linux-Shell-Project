@@ -38,7 +38,7 @@ int main()
 	char* last_dir = NULL;
 	char line[MAX_SIZE];
 
-	arglist arg_list1, arg_list2, arg_list3;
+	arglist* arg_list;
 
 	while(1)
 	{
@@ -53,26 +53,30 @@ int main()
 		// Parse input
 		fgets(line, sizeof(line), stdin);
 
-		argListCreate(&arg_list1, INIT_ARG_SIZE);
-		argListCreate(&arg_list2, INIT_ARG_SIZE);
-		argListCreate(&arg_list3, INIT_ARG_SIZE);
 
-		if (!parseInput(&arg_list1, line))
+		// Allocate memory for argument lists
+		arg_list = malloc(3 * sizeof(arglist));
+
+		argListCreate(&arg_list[0], INIT_ARG_SIZE);
+		argListCreate(&arg_list[1], INIT_ARG_SIZE);
+		argListCreate(&arg_list[2], INIT_ARG_SIZE);
+
+		if (!parseInput(&arg_list[0], line))
 			continue;
 
-		bool is_background_process = parseBG(&arg_list1);
-		bool is_ioacct_cmd = parseIoacct(&arg_list1);
+		bool is_background_process = parseBG(&arg_list[0]);
+		bool is_ioacct_cmd = parseIoacct(&arg_list[0]);
 
-		if(strcmp(arg_list1.args[0], "exit") == 0 ||
-                  (strcmp(arg_list1.args[0], "cd") == 0 && !is_background_process))
-                        execBuiltIn(&arg_list1, curr_dir, &last_dir, is_background_process, is_ioacct_cmd);
+		if(strcmp(arg_list[0].args[0], "exit") == 0 ||
+                  (strcmp(arg_list[0].args[0], "cd") == 0 && !is_background_process))
+                        execBuiltIn(&arg_list[0], curr_dir, &last_dir, is_background_process, is_ioacct_cmd);
                 else
-                        execCmd(&arg_list1, &arg_list2, &arg_list3, is_background_process, is_ioacct_cmd);
+                        execCmd(&arg_list[0], &arg_list[1], &arg_list[2], is_background_process, is_ioacct_cmd);
 
 		// Memory clean up
-		argListDestroy(&arg_list1);
-		argListDestroy(&arg_list2);
-		argListDestroy(&arg_list3);
+		argListDestroy(&arg_list[0]);
+		argListDestroy(&arg_list[1]);
+		argListDestroy(&arg_list[2]);
 		free(user_name);
 		reapChildren();
 
@@ -119,7 +123,30 @@ void execCmd(arglist* arg_list1, arglist* arg_list2, arglist* arg_list3, bool is
 
 	// Get the number of pipes
  	size_t pipes = parsePipes(arg_list1, arg_list2, arg_list3);
+/*
+        // change to dynamic array of cmdpaths based on number of pipes
+        char** cmd_paths = malloc((pipes + 1) * sizeof(char*));
+	if(pipes == 0)
+	{
+		cmd_paths[0] = getCmdPath(arg_list1->args[0], getenv(PATH));
+	}
+	elseif (pipes == 1)
+	{
+		cmd_paths[0] = getCmdPath(arg_list1->args[0], getenv(PATH));
+		cmd_paths[1] = getCmdPath(arg_list2->args[0], getenv(PATH));
+	}
+	elseif (pipes == 2)
+	{
+		cmd_paths[0] = getCmdPath(arg_list1->args[0], getenv(PATH));
+		cmd_paths[1] = getCmdPath(arg_list2->args[0], getenv(PATH));
+		cmd_paths[2] = getCmdPath(arg_list3->args[0], getenv(PATH));
+	}
 
+
+	int i = 0;
+	for(
+
+*/
 	if(pipes == 0)
 		execNoPipes(arg_list1, is_background_process, is_ioacct_cmd);
 	else if(pipes == 1)

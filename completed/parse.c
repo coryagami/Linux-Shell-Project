@@ -305,7 +305,7 @@ bool inputErrorHandler(arglist* arg_list)
                             strcmp(arg_list->args[i+1], "|") == 0)
                         {
                                 printf("Usage: <operand> %s <operand\n", arg_list->args[i]);
-                                return true;
+                                return false;
                         }
                 }
 
@@ -315,9 +315,12 @@ bool inputErrorHandler(arglist* arg_list)
                         // Incorrectly placed &
                         if(arg_list->args[i][j] == '&')
                         {
-                                if(i != arg_list->size-1 || j != strlen(arg_list->args[i]))
+                                if(strcmp(arg_list->args[i], "&") != 0 &&
+				(arg_list->args[i][j+1] != '\0' || i != arg_list->size-1))
+				{
                                         printf("Usage: <command>&\n");
-                                return false;
+        	                        return false;
+				}
                         }
                         j++;
                 }
