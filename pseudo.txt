@@ -1,28 +1,90 @@
-clear
+#includes
+function declarations
+
 while true :
+	reap children processes (catch possible zombie processes)
+
 	get { hostname, username, current directory, $OLDPWD(NULL to start) }
 	print username@hostname prompt
 	
-	read line, parse between whitespace
-	fill cmd, args array
+	create 3 arg lists (allocate mem properly, initialize to NULL)
+	read sommand line input 
+		parse out whitespace,
+		do input error handling (malformed/ambiguous commands)
+		fill first argslist with full command line
+	check for IOacct/background process commands, adjust first argslist
 	
 	if cmd = built-in (cd, ioacct, exit) :
-		if cd : chdir(), update $OLDPWD
-		if ioacct : ??? proc/pid/io
-		if exit[n] : return n;
+		if cd : 
+			chdir(), handle special cases (-, ~, blank, &)
+		if exit[n] : 
+			reap child processes, return n;
 		
 	else :
-		search PATH for cmd
-		child = fork()
-		if child == 0 (inside child) :			// avoid nested ifs here for piping
-			execv(cmd path, args)
-		else (inside parent):
-			if ends with & :
-				waitpid(-1, (int *)NULL, 0)
-			else :
-				waitpid(with blocking/waiting...)
+		parse out possible pipes in first argslist
+			fill second and third argslists with piped commands
 
+		if no pipes:
+			parse first arglist for redirects, adjust array, store redirect stream
+			search PATH for cmd
+
+			child = fork()
+			if child == 0 (inside child) :
+				check redirects:
+					if in redirect, open file RDONLY, dup STDIN, close
+					if out redirect, creat() file 0644 perms, dup STDOUT, close
+					if append redirect, open file WRONLY|APPEND, dup STDOUT, close
+				execv(cmd path, args)
+			else if background:
+				waitpid(-1, (int *)NULL, WNOHANG);
+			else if ioacct:
+				read from proc/[pid]/io file while waitpid(WNOHANG) == 0
+				print bytes read/written
+			else (inside parent):
+				waitpid(-1, (int *)NULL, 0)
+
+		if 1 pipe:
+			create pipe int array pipefd[2], call pipe()
+			parse second argslist for redirects
 			
+			child = fork()
+			if child == 0 (inside second argument):
+				set input fd to pipefd[0], close fd's
+				check redirects:
+					if in redirect, open file RDONLY, dup STDIN, close
+					if out redirect, creat() file 0644 perms, dup STDOUT, close
+					if append redirect, open file WRONLY|APPEND, dup STDOUT, close
+				execv(2nd cmd path, args)
+			else (in parent):
+				child2 = fork()
+				if child == 0:
+					set output fd to pipefd[1], close fd's
+					execv(1st cmd path, args)
+			close pipes
+			call waitpid(-1, (int*)NULL, 0) on both processes
+
+		if 2 pipes:
+			create pipe in array pipefd[4], call pipe twice
+			parse third arglist for redirects
+
+			child = fork()
+			if child == 0 (1st cmd):
+				set output to pipefd[1], close fd's
+				execv(1st cmd path, args)
+			else:
+				child2 = fork()
+				if child2 == 0 (2nd cmd):
+					set input fd to pipefd[0], output to pipefd[3], close fd's
+					execv(cmd path 2, args)
+				else:
+					child3 = fork()
+					if child3 == 0 (3rd cmd):
+						set input to pipefd[2], close fd's
+						do redirect fd dup2's
+						execv(cmd path 3, args)
+			close pipes
+			call waitpid(-1, (int*)NULL, 0) on all 3 processes
+
 			
 			
 		
