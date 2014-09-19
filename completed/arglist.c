@@ -13,6 +13,18 @@ void argListPrint(arglist* arg_list)
 	}
 }
 
+// ******************************************************************************
+// ******************************************************************************
+// * Function Name: argListCreate                                               *
+// * Description: This function allocates memory for a new argument list        *
+// * Parameters:                                                                *
+// *    arglist* arglist : The location to allocate the memory.                 *
+// *    site_t capacity  : Initial argument capacity.                           *
+// * Return: bool                                                               *
+// *                                                                            *
+// ******************************************************************************
+// ******************************************************************************
+
 void argListCreate(arglist* arg_list, size_t capacity)
 {
         arg_list->size = 0;
@@ -24,6 +36,17 @@ void argListCreate(arglist* arg_list, size_t capacity)
 		arg_list->args[i] = NULL;
 }
 
+// ******************************************************************************
+// ******************************************************************************
+// * Function Name: argListDestroy                                              *
+// * Description: This deallocates an argument list.                            *
+// * Parameters:                                                                *
+// *    arglist* arglist : The location of the argument list to be deallocated. *
+// * Return: void                                                               *
+// *                                                                            *
+// ******************************************************************************
+// ******************************************************************************
+
 void argListDestroy(arglist* arg_list)
 {
         int i = 0;
@@ -31,6 +54,20 @@ void argListDestroy(arglist* arg_list)
                 free(arg_list->args[i]);
         free(arg_list->args);
 }
+
+// ******************************************************************************
+// ******************************************************************************
+// * Function Name: argListAdd                                                  *
+// * Description: This function takes in an argument and adds it to the         *
+// * argument list                                                              *
+// * Parameters:                                                                *
+// *    arglist* arglist : The argument list to add the argument.         	*
+// *    const char* arg  : The argument to be inserted.                         *
+// *    size_t index     : The index to insert the item				*
+// * Return: bool                                                               *
+// *                                                                            *
+// ******************************************************************************
+// ******************************************************************************
 
 bool argListAdd(arglist* arg_list, const char* arg, size_t index)
 {
@@ -53,6 +90,21 @@ bool argListAdd(arglist* arg_list, const char* arg, size_t index)
 	arg_list->size++;
         return true;
 }
+
+// ******************************************************************************
+// ******************************************************************************
+// * Function Name: parseInput                                                  *
+// * Description: This function takes in a line and parses that line based on   *
+// * white space and newline characters. Then returns the parsing results in    *
+// * argument list passed in.                                                   *
+// * Parameters:                                                                *
+// *    arglist* arglist : The location to store the arguments of the           *
+// *                        parse line.                                         *
+// *    char* line       : The line to be parsed                                *
+// * Return: bool                                                               *
+// *                                                                            *
+// ******************************************************************************
+// ******************************************************************************
 
 bool argListRemove(arglist* arg_list, size_t index)
 {
