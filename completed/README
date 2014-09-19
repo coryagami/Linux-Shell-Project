@@ -8,8 +8,15 @@
 
 README
 
-  Reaper is a basic shell that supports command execution, I/O output, input and append redirection, as well as two pipes.
-  
+  Reaper is a basic shell that supports command execution, I/O output, input and append redirection, background processing, and piping.
+  Commands supported include any executable file located in the PATH environment variables, as well as the built in commands cd, and exit.
+  Included in cd's operation is support for the - and ~ operands as well as no operand. Input and output redirects cannot be combined in one command.
+  However they can be used in combination with piping such that the commands is not ambiguous. Piping support is limited to two pipes. Background processing
+  is supported by appending an & as the last non-white space character to a command. Additionally support for an ioacct command of the form ioacct <command>
+  is supported such that the command following ioacct is executed on the as if typed directly into the shell. Ioacct prints out the character bytes read and
+  written by the process executing that command. Ioacct combinations with background processing, piping, and I/O output, input, and append redirections is not
+  supported. 
+
 
   Developers:
     Cory Agami
