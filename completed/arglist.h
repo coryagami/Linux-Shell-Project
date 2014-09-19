@@ -6,9 +6,9 @@
 #include <stdbool.h>
 
 struct arglist{
-        char** args;
-        size_t size;
-        size_t capacity;
+    char** args;
+    size_t size;
+    size_t capacity;
 };
 typedef struct arglist arglist;
 

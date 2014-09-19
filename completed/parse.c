@@ -23,16 +23,16 @@
 
 bool parseInput(arglist* arg_list, char* line)
 {
-        char* token = strtok(line, " \n");
+    char* token = strtok(line, " \n");
 
-        while(token)
-        {
-                argListAdd(arg_list, token, arg_list->size);
-                token = strtok(NULL, " \n");
-        }
+    while(token)
+    {
+        argListAdd(arg_list, token, arg_list->size);
+        token = strtok(NULL, " \n");
+    }
 
-        // Error checking
-        return inputErrorHandler(arg_list);
+    // Error checking
+    return inputErrorHandler(arg_list);
 }
 
 // ******************************************************************************
@@ -50,17 +50,17 @@ bool parseInput(arglist* arg_list, char* line)
 
 bool parseBG(arglist* arg_list)
 {
-        size_t last_arg_len = strlen(arg_list->args[arg_list->size-1]);
-        if(arg_list->args[arg_list->size-1][last_arg_len-1] == '&')
-        {
-                if (last_arg_len > 1)
-                        arg_list->args[arg_list->size-1][last_arg_len-1] = '\0';
-                else if(last_arg_len == 1)
-                        argListRemove(arg_list, arg_list->size-1);
+    size_t last_arg_len = strlen(arg_list->args[arg_list->size-1]);
+    if(arg_list->args[arg_list->size-1][last_arg_len-1] == '&')
+    {
+        if (last_arg_len > 1)
+            arg_list->args[arg_list->size-1][last_arg_len-1] = '\0';
+        else if(last_arg_len == 1)
+            argListRemove(arg_list, arg_list->size-1);
 
-                return true;
-        }
-        return false;
+        return true;
+    }
+    return false;
 }
 
 // ******************************************************************************
@@ -91,20 +91,20 @@ bool parseBG(arglist* arg_list)
 
 void parseRedirs(arglist* arg_list, bool* is_in_redir, bool* is_out_redir, bool* is_append_redir, char* redir_file)
 {
-        int i = 0;
-        for(; i < arg_list->size; i++)
-        {
-                if(strcmp(arg_list->args[i], "<") == 0) *is_in_redir = true;
-                if(strcmp(arg_list->args[i], ">") == 0) *is_out_redir = true;
-                if(strcmp(arg_list->args[i], ">>") == 0) *is_append_redir = true;
+    int i = 0;
+    for(; i < arg_list->size; i++)
+    {
+        if(strcmp(arg_list->args[i], "<") == 0) *is_in_redir = true;
+        if(strcmp(arg_list->args[i], ">") == 0) *is_out_redir = true;
+        if(strcmp(arg_list->args[i], ">>") == 0) *is_append_redir = true;
 
-                if(*is_in_redir || *is_out_redir || *is_append_redir)
-                {
-                        strcpy(redir_file, arg_list->args[i+1]);
-                        argListRemove(arg_list, i);
-                        argListRemove(arg_list, i);
-                }
+        if(*is_in_redir || *is_out_redir || *is_append_redir)
+        {
+            strcpy(redir_file, arg_list->args[i+1]);
+            argListRemove(arg_list, i);
+            argListRemove(arg_list, i);
         }
+    }
 }
 
 // ******************************************************************************
@@ -122,12 +122,12 @@ void parseRedirs(arglist* arg_list, bool* is_in_redir, bool* is_out_redir, bool*
 
 bool parseIoacct(arglist* arg_list)
 {
-        if (strcmp(arg_list->args[0], "ioacct") == 0)
-        {
-                argListRemove(arg_list, 0);
-                return true;
-        }
-        return false;
+    if (strcmp(arg_list->args[0], "ioacct") == 0)
+    {
+        argListRemove(arg_list, 0);
+        return true;
+    }
+    return false;
 }
 
 // ******************************************************************************
@@ -149,21 +149,21 @@ bool parseIoacct(arglist* arg_list)
 
 int parsePipes(arglist* arg_list1, arglist* arg_list2, arglist* arg_list3)
 {
-        size_t pipes = 0;
+    size_t pipes = 0;
 
-        int i = 0;
-        for(; i < arg_list1->size; i++)
+    int i = 0;
+    for(; i < arg_list1->size; i++)
+    {
+        if(strcmp(arg_list1->args[i], "|") == 0)
         {
-                if(strcmp(arg_list1->args[i], "|") == 0)
-                {
-                        pipes++;
-                        argListRemove(arg_list1, i);
-                }
-                if(pipes == 1) argListAdd(arg_list2, arg_list1->args[i], arg_list2->size);
-                if(pipes == 2) argListAdd(arg_list3, arg_list1->args[i], arg_list3->size);
-		if(pipes != 0) argListRemove(arg_list1, i--);
+            pipes++;
+            argListRemove(arg_list1, i);
         }
-        return pipes;
+        if(pipes == 1) argListAdd(arg_list2, arg_list1->args[i], arg_list2->size);
+        if(pipes == 2) argListAdd(arg_list3, arg_list1->args[i], arg_list3->size);
+        if(pipes != 0) argListRemove(arg_list1, i--);
+   }
+   return pipes;
 }
 
 // ******************************************************************************
@@ -182,150 +182,160 @@ int parsePipes(arglist* arg_list1, arglist* arg_list2, arglist* arg_list3)
 
 bool inputErrorHandler(arglist* arg_list)
 {
-        // Check for no command entered
-        if(arg_list->size == 0) return false;
+    // Check for no command entered
+    if(arg_list->size == 0) return false;
 
-        // Check for a command entered after ioacct
-        if(arg_list->size == 1 && strcmp(arg_list->args[0], "ioacct") == 0)
-        {
-                printf("Usage: ioacct <command>\n");
-                return false;
-        }
+    // Check for a command entered after ioacct
+    if(arg_list->size == 1 && strcmp(arg_list->args[0], "ioacct") == 0)
+    {
+        printf("Usage: ioacct <command>\n");
+        return false;
+    }
 
-        // Splits <, >, >>, and | into separate arguments
-        int i = 0;
-        while(i < arg_list->size)
+    // Splits <, >, >>, and | into separate arguments
+    int i = 0;
+    while(i < arg_list->size)
+    {
+        int j = 0;
+        while(arg_list->args[i][j] != '\0')
         {
-                int j = 0;
-                while(arg_list->args[i][j] != '\0')
-                {
-                        if(arg_list->args[i][j] == '<' ||
-                          (arg_list->args[i][j] == '>' && arg_list->args[i][j+1] == '>') ||
-                           arg_list->args[i][j] == '>' ||
-                           arg_list->args[i][j] == '|')
-                        {
-                                // If the operator is the already in an argument by itself, break to the next argument
-                                if(strcmp(arg_list->args[i], "<") == 0 ||
-                                    strcmp(arg_list->args[i], ">>") == 0 ||
-                                    strcmp(arg_list->args[i], ">") == 0 ||
-                                    strcmp(arg_list->args[i], "|") == 0)
-                                        break;
+            if(arg_list->args[i][j] == '<' ||
+              (arg_list->args[i][j] == '>' && arg_list->args[i][j+1] == '>') ||
+               arg_list->args[i][j] == '>' ||
+               arg_list->args[i][j] == '|')
+            {
+                // If the operator is the already in an argument by itself, break to the next argument
+                if(strcmp(arg_list->args[i], "<") == 0 ||
+                   strcmp(arg_list->args[i], ">>") == 0 ||
+                   strcmp(arg_list->args[i], ">") == 0 ||
+                   strcmp(arg_list->args[i], "|") == 0)
+                    break;
 
 				int size = (arg_list->args[i][j+1] == '>') ? 3 : 2;
 
-                                char* substring;
+                char* substring;
 
-                                // Check for character at beginning
-                                if(j == 0)
-                                {
-                                        // Add first half of substring
-                                        substring = malloc(size);
-                                        strncpy(substring, arg_list->args[i], size-1);
-                                        substring[size-1] = '\0';
-                                        argListAdd(arg_list, substring, i++);
-                                        free(substring);
+                // Check for character at beginning
+                if(j == 0)
+                {
+                    // Add first half of substring
+                    substring = malloc(size);
+                    strncpy(substring, arg_list->args[i], size-1);
+                    substring[size-1] = '\0';
+                    argListAdd(arg_list, substring, i++);
+                    free(substring);
 
-                                        size_t len = strlen(arg_list->args[i]);
+                    size_t len = strlen(arg_list->args[i]);
 
-                                        // Add second half of the substring
-                                        substring = malloc(len+(size-2));
-                                        strncpy(substring, arg_list->args[i]+size-1, len-(size-2));
-                                        argListAdd(arg_list, substring, i++);
-                                        free(substring);
+                    // Add second half of the substring
+                    substring = malloc(len+(size-2));
+                    strncpy(substring, arg_list->args[i]+size-1, len-(size-2));
+                    argListAdd(arg_list, substring, i++);
+                    free(substring);
 
-                                }
-                                // Check for character at end
-                                else if(j == strlen(arg_list->args[i])-(size-1))
-                                {
-                                        size_t len = strlen(arg_list->args[i]);
+                }
+                // Check for character at end
+                else if(j == strlen(arg_list->args[i])-(size-1))
+                {
+                    size_t len = strlen(arg_list->args[i]);
 
-                                        // Add first half of substring
-                                        substring = malloc(len-(size-2));
-                                        strncpy(substring, arg_list->args[i], len-(size-1));
-                                        substring[len-(size-1)] = '\0';
-                                        argListAdd(arg_list, substring, i++);
-                                        free(substring);
+                    // Add first half of substring
+                    substring = malloc(len-(size-2));
+                    strncpy(substring, arg_list->args[i], len-(size-1));
+                    substring[len-(size-1)] = '\0';
+                    argListAdd(arg_list, substring, i++);
+                    free(substring);
 
-                                        // Add second half of the substring
-                                        substring = malloc(size);
-                                        strncpy(substring, arg_list->args[i]+len-(size-1), size);
-                                        argListAdd(arg_list, substring, i++);
-                                        free(substring);
+                    // Add second half of the substring
+                    substring = malloc(size);
+                    strncpy(substring, arg_list->args[i]+len-(size-1), size);
+                    argListAdd(arg_list, substring, i++);
+                    free(substring);
 				}
 				// Check for character in middle
-                                else
-                                {
-                                        size_t len = strlen(arg_list->args[i]);
+                else
+                {
+                    size_t len = strlen(arg_list->args[i]);
 
-                                        // Add beginning of substring
-                                        substring = malloc(j+1);
-                                        strncpy(substring, arg_list->args[i], j);
-                                        substring[j] = '\0';
-                                        argListAdd(arg_list, substring, i++);
-                                        free(substring);
+                    // Add beginning of substring
+                    substring = malloc(j+1);
+                    strncpy(substring, arg_list->args[i], j);
+                    substring[j] = '\0';
+                    argListAdd(arg_list, substring, i++);
+                    free(substring);
 
-                                        // Add middle of substring
-                                        substring = malloc(size);
-                                        strncpy(substring, arg_list->args[i]+j, size-1);
-                                        substring[size-1] = '\0';
-                                        argListAdd(arg_list, substring, i++);
-                                        free(substring);
+                    // Add middle of substring
+                    substring = malloc(size);
+                    strncpy(substring, arg_list->args[i]+j, size-1);
+                    substring[size-1] = '\0';
+                    argListAdd(arg_list, substring, i++);
+                    free(substring);
 
-                                        // Add end of substring
-                                        substring = malloc(len-size);
-                                        strncpy(substring, arg_list->args[i]+j+(size-1), len-size);
-                                        argListAdd(arg_list, substring, i++);
-                                        free(substring);
-                                }
-
-                                argListRemove(arg_list, i--);
-                                break;
-                        }
-                        j++;
+                    // Add end of substring
+                    substring = malloc(len-size);
+                    strncpy(substring, arg_list->args[i]+j+(size-1), len-size);
+                    argListAdd(arg_list, substring, i++);
+                    free(substring);
                 }
-                i++;
+
+                argListRemove(arg_list, i--);
+                break;
         }
+        j++;
+    }
+    i++;
+}
 
+    int pipes = 0;
 
-        // Check for incorrectly placed &, <, >, >>, and |
-        i = 0;
-        while(i < arg_list->size)
+    // Check for incorrectly placed &, <, >, >>, and |
+    i = 0;
+    while(i < arg_list->size)
+    {
+
+        if(strcmp(arg_list->args[i], "<") == 0 ||
+           strcmp(arg_list->args[i], ">") == 0 ||
+           strcmp(arg_list->args[i], ">>") == 0 ||
+           strcmp(arg_list->args[i], "|") == 0)
         {
-
-                if(strcmp(arg_list->args[i], "<") == 0 ||
-                   strcmp(arg_list->args[i], ">") == 0 ||
-                   strcmp(arg_list->args[i], ">>") == 0 ||
-                   strcmp(arg_list->args[i], "|") == 0)
-                {
-                        // Check for <, >, >> and | with invalid second operand
-                        if(i+1 >= arg_list->size || i-1 < 0 ||
-                            strcmp(arg_list->args[i+1], "<") == 0 ||
-                            strcmp(arg_list->args[i+1], ">") == 0 ||
-                            strcmp(arg_list->args[i+1], ">>") == 0 ||
-                            strcmp(arg_list->args[i+1], "|") == 0)
-                        {
-                                printf("Usage: <operand> %s <operand\n", arg_list->args[i]);
-                                return false;
-                        }
-                }
-
-                int j = 0;
-                while(arg_list->args[i][j] != '\0')
-                {
-                        // Incorrectly placed &
-                        if(arg_list->args[i][j] == '&')
-                        {
-                                if(strcmp(arg_list->args[i], "&") != 0 &&
-				(arg_list->args[i][j+1] != '\0' || i != arg_list->size-1))
-				{
-                                        printf("Usage: <command>&\n");
-        	                        return false;
-				}
-                        }
-                        j++;
-                }
-                i++;
+            // Check for <, >, >> and | with invalid second operand
+            if(i+1 >= arg_list->size || i-1 < 0 ||
+                strcmp(arg_list->args[i+1], "<") == 0 ||
+                strcmp(arg_list->args[i+1], ">") == 0 ||
+                strcmp(arg_list->args[i+1], ">>") == 0 ||
+                strcmp(arg_list->args[i+1], "|") == 0)
+            {
+                printf("Usage: <operand> %s <operand\n", arg_list->args[i]);
+                return false;
+            }
         }
 
-        return true;
+    if(strcmp(arg_list->args[i], "|") == 0) pipes++;
+    if(strcmp(arg_list->args[i], "<") == 0 && pipes > 0)
+    {
+        printf("Ambiguous command\n");
+        return false;
+    }
+
+
+        int j = 0;
+        while(arg_list->args[i][j] != '\0')
+        {
+            // Incorrectly placed &
+            if(arg_list->args[i][j] == '&')
+            {
+                if(strcmp(arg_list->args[i], "&") != 0 &&
+                  (arg_list->args[i][j+1] != '\0' || i != arg_list->size-1))
+                {
+                    printf("Usage: <command>&\n");
+                    return false;
+                }
+            }
+
+            j++;
+        }
+        i++;
+    }
+
+    return true;
 }
